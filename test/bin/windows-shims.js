@@ -29,21 +29,21 @@ t.test('npm vs npx', async t => {
       return acc
     }, { diff: [], letters: new Set() })
 
-  t.test('bash', async t => {
+  await t.test('bash', async t => {
     const { diff, letters } = diffFiles(SHIMS.npm, SHIMS.npx)
     t.match(diff[0].split('\n').reverse().join(''), /^NPX_CLI_JS=/, 'has NPX_CLI')
     t.equal(diff.length, 1)
     t.strictSame([...letters], ['M', 'X'], 'all other changes are m->x')
   })
 
-  t.test('cmd', async t => {
+  await t.test('cmd', async t => {
     const { diff, letters } = diffFiles(SHIMS['npm.cmd'], SHIMS['npx.cmd'])
     t.match(diff[0], /^SET "NPX_CLI_JS=/, 'has NPX_CLI')
     t.equal(diff.length, 1)
     t.strictSame([...letters], ['M', 'X'], 'all other changes are m->x')
   })
 
-  t.test('pwsh', async t => {
+  await t.test('pwsh', async t => {
     const { diff, letters } = diffFiles(SHIMS['npm.ps1'], SHIMS['npx.ps1'])
     t.equal(diff.length, 0)
     t.strictSame([...letters], ['M', 'X'], 'all other changes are m->x')
@@ -103,60 +103,45 @@ t.test('basic', async t => {
       signal: null,
       stderr: '',
       stdout: isNpm ? `npm@${version} ${ROOT}` : version,
-    })
+    }, cmd)
   }
 
-  await t.test('cmd', async t => {
-    await matchSpawn(t, 'npm.cmd')
-    await matchSpawn(t, 'npx.cmd')
-  })
+  await matchSpawn(t, 'npm.cmd')
+  await matchSpawn(t, 'npx.cmd')
+  await matchSpawn(t, 'npm.ps1')
+  await matchSpawn(t, 'npx.ps1')
 
-  await t.test('pwsh', async t => {
-    await matchSpawn(t, 'npm.ps1')
-    await matchSpawn(t, 'npx.ps1')
-  })
+  const { ProgramFiles, SystemRoot, NYC_CONFIG } = process.env
+  const gitBash = join(ProgramFiles, 'Git', 'bin', 'bash.exe')
+  const gitUsrBinBash = join(ProgramFiles, 'Git', 'usr', 'bin', 'bash.exe')
+  const wslBash = join(SystemRoot, 'System32', 'bash.exe')
+  const cygwinBash = join(SystemRoot, '/', 'cygwin64', 'bin', 'bash.exe')
 
-  await t.test('bash', async t => {
-    const { ProgramFiles, SystemRoot, NYC_CONFIG } = process.env
-    const gitBash = join(ProgramFiles, 'Git', 'bin', 'bash.exe')
-    const gitUsrBinBash = join(ProgramFiles, 'Git', 'usr', 'bin', 'bash.exe')
-    const wslBash = join(SystemRoot, 'System32', 'bash.exe')
-    const cygwinBash = join(SystemRoot, '/', 'cygwin64', 'bin', 'bash.exe')
-
-    const bashes = Object.entries({
-      'wsl bash': wslBash,
-      'git bash': gitBash,
-      'git internal bash': gitUsrBinBash,
-      'cygwin bash': cygwinBash,
-    }).map(([name, cmd]) => {
-      let skip
-      if (cmd === cygwinBash && NYC_CONFIG) {
-        skip = 'does not play nicely with NYC, run without coverage'
-      } else {
-        try {
-        // If WSL is installed, it *has* a bash.exe, but it fails if
-        // there is no distro installed, so we need to detect that.
-          if (spawnSync(cmd, ['-l', '-c', 'exit 0']).status !== 0) {
-            throw new Error('not installed')
-          }
-        } catch (err) {
-          skip = err.message
+  const bashes = [wslBash, gitBash, gitUsrBinBash, cygwinBash].map(cmd => {
+    let skip = null
+    if (cmd === cygwinBash && NYC_CONFIG) {
+      skip = 'does not play nicely with NYC, run without coverage'
+    } else {
+      try {
+      // If WSL is installed, it *has* a bash.exe, but it fails if
+      // there is no distro installed, so we need to detect that.
+        if (spawnSync(cmd, ['-l', '-c', 'exit 0']).status !== 0) {
+          throw new Error('not installed')
         }
+      } catch (err) {
+        skip = err.message
       }
-      return { name, cmd, skip }
-    })
-
-    for (const { name, cmd, skip } of bashes) {
-      if (skip) {
-        t.skip(name, { diagnostic: true, cmd, reason: skip })
-        continue
-      }
-
-      await t.test(name, async t => {
-        // only cygwin *requires* the -l, but the others are ok with it
-        await matchSpawn(t, cmd, ['-l', 'npm'])
-        await matchSpawn(t, cmd, ['-l', 'npx'])
-      })
     }
+    return [cmd, skip]
   })
+
+  for (const [cmd, reason] of bashes) {
+    if (reason) {
+      t.comment(`skipping ${cmd}: ${reason}`)
+    } else {
+      // only cygwin *requires* the -l, but the others are ok with it
+      await matchSpawn(t, cmd, ['-l', 'npm'])
+      await matchSpawn(t, cmd, ['-l', 'npx'])
+    }
+  }
 })
