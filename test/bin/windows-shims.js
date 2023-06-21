@@ -79,67 +79,69 @@ t.test('basic', async t => {
   chmodSync(join(path, 'npm'), 0o755)
   chmodSync(join(path, 'npx'), 0o755)
 
-  const { ProgramFiles, SystemRoot, NYC_CONFIG } = process.env
-  const gitBash = join(ProgramFiles, 'Git', 'bin', 'bash.exe')
-  const gitUsrBinBash = join(ProgramFiles, 'Git', 'usr', 'bin', 'bash.exe')
-  const wslBash = join(SystemRoot, 'System32', 'bash.exe')
-  const cygwinBash = join(SystemRoot, '/', 'cygwin64', 'bin', 'bash.exe')
+  await t.test('bash', async t => {
+    const { ProgramFiles, SystemRoot, NYC_CONFIG } = process.env
+    const gitBash = join(ProgramFiles, 'Git', 'bin', 'bash.exe')
+    const gitUsrBinBash = join(ProgramFiles, 'Git', 'usr', 'bin', 'bash.exe')
+    const wslBash = join(SystemRoot, 'System32', 'bash.exe')
+    const cygwinBash = join(SystemRoot, '/', 'cygwin64', 'bin', 'bash.exe')
 
-  const bashes = Object.entries({
-    'wsl bash': wslBash,
-    'git bash': gitBash,
-    'git internal bash': gitUsrBinBash,
-    'cygwin bash': cygwinBash,
-  }).map(([name, bash]) => {
-    let skip
-    if (bash === cygwinBash && NYC_CONFIG) {
-      skip = 'does not play nicely with NYC, run without coverage'
-    } else {
-      try {
+    const bashes = Object.entries({
+      'wsl bash': wslBash,
+      'git bash': gitBash,
+      'git internal bash': gitUsrBinBash,
+      'cygwin bash': cygwinBash,
+    }).map(([name, bash]) => {
+      let skip
+      if (bash === cygwinBash && NYC_CONFIG) {
+        skip = 'does not play nicely with NYC, run without coverage'
+      } else {
+        try {
         // If WSL is installed, it *has* a bash.exe, but it fails if
         // there is no distro installed, so we need to detect that.
-        if (spawnSync(bash, ['-l', '-c', 'exit 0']).status !== 0) {
-          throw new Error('not installed')
+          if (spawnSync(bash, ['-l', '-c', 'exit 0']).status !== 0) {
+            throw new Error('not installed')
+          }
+        } catch {
+          skip = 'not installed'
         }
-      } catch {
-        skip = 'not installed'
       }
-    }
-    return { name, bash, skip }
-  })
-
-  for (const { name, bash, skip } of bashes) {
-    if (skip) {
-      t.skip(name, { diagnostic: true, bin: bash, reason: skip })
-      continue
-    }
-
-    await t.test(name, async t => {
-      const bins = Object.entries({
-        // should have loaded this instance of npm we symlinked in
-        npm: [['help'], `npm@${version} ${root}`],
-        npx: [['--version'], version],
-      })
-
-      for (const [binName, [cmdArgs, stdout]] of bins) {
-        await t.test(binName, async t => {
-          // only cygwin *requires* the -l, but the others are ok with it
-          const args = ['-l', binName, ...cmdArgs]
-          const result = await spawn(bash, args, {
-            // don't hit the registry for the update check
-            env: { PATH: path, npm_config_update_notifier: 'false' },
-            cwd: path,
-          })
-          t.match(result, {
-            cmd: bash,
-            args: args,
-            code: 0,
-            signal: null,
-            stderr: String,
-            stdout,
-          })
-        })
-      }
+      return { name, bash, skip }
     })
-  }
+
+    for (const { name, bash, skip } of bashes) {
+      if (skip) {
+        t.skip(name, { diagnostic: true, bin: bash, reason: skip })
+        continue
+      }
+
+      await t.test(name, async t => {
+        const bins = Object.entries({
+        // should have loaded this instance of npm we symlinked in
+          npm: [['help'], `npm@${version} ${root}`],
+          npx: [['--version'], version],
+        })
+
+        for (const [binName, [cmdArgs, stdout]] of bins) {
+          await t.test(binName, async t => {
+          // only cygwin *requires* the -l, but the others are ok with it
+            const args = ['-l', binName, ...cmdArgs]
+            const result = await spawn(bash, args, {
+            // don't hit the registry for the update check
+              env: { PATH: path, npm_config_update_notifier: 'false' },
+              cwd: path,
+            })
+            t.match(result, {
+              cmd: bash,
+              args: args,
+              code: 0,
+              signal: null,
+              stderr: String,
+              stdout,
+            })
+          })
+        }
+      })
+    }
+  })
 })
