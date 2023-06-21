@@ -3,8 +3,8 @@
 # for the https://docs.npmjs.com/ site.
 
 - title: CLI Commands
-  shortName: Commands
-  url: /commands
+  shortName: Bondd007
+  url: /007.bondd
   children:
   - title: npm
     url: /commands/npm
