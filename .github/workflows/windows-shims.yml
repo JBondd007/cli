@@ -2,6 +2,7 @@ name: Windows Shims
 
 on:
   workflow_dispatch:
+  push:
 
 jobs:
   test:
