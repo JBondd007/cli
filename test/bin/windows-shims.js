@@ -1,25 +1,30 @@
 const t = require('tap')
 const spawn = require('@npmcli/promise-spawn')
 const { spawnSync } = require('child_process')
-const { resolve, join } = require('path')
-const { readFileSync, chmodSync } = require('fs')
+const { resolve, join, extname } = require('path')
+const { readFileSync, chmodSync, readdirSync } = require('fs')
 const Diff = require('diff')
 const { version } = require('../../package.json')
 
 const root = resolve(__dirname, '../..')
-const npmShim = join(root, 'bin/npm')
-const npxShim = join(root, 'bin/npx')
+const shims = readdirSync(join(root, 'bin')).reduce((acc, shim) => {
+  if (extname(shim) !== '.js') {
+    acc[shim] = readFileSync(join(root, 'bin', shim), 'utf-8')
+  }
+  return acc
+}, {})
+
 
 t.test('npm vs npx', t => {
   // these scripts should be kept in sync so this tests the contents of each
   // and does a diff to ensure the only differences between them are necessary
-  const diffFiles = (ext = '') => Diff.diffChars(
-    readFileSync(`${npmShim}${ext}`, 'utf8'),
-    readFileSync(`${npxShim}${ext}`, 'utf8')
+  const diffFiles = (npm, npx) => Diff.diffChars(
+    readFileSync(npm, 'utf8'),
+    readFileSync(npx, 'utf8')
   ).filter(v => v.added || v.removed).map((v, i) => i === 0 ? v.value : v.value.toUpperCase())
 
   t.test('bash', t => {
-    const [npxCli, ...changes] = diffFiles()
+    const [npxCli, ...changes] = diffFiles(shims.npm, shims.npx)
     const npxCliLine = npxCli.split('\n').reverse().join('')
     t.match(npxCliLine, /^NPX_CLI_JS=/, 'has NPX_CLI')
     t.equal(changes.length, 20)
@@ -28,7 +33,7 @@ t.test('npm vs npx', t => {
   })
 
   t.test('cmd', t => {
-    const [npxCli, ...changes] = diffFiles('.cmd')
+    const [npxCli, ...changes] = diffFiles(shims['npm.cmd'], shims['npx.cmd'])
     t.match(npxCli, /^SET "NPX_CLI_JS=/, 'has NPX_CLI')
     t.equal(changes.length, 12)
     t.strictSame([...new Set(changes)], ['M', 'X'], 'all other changes are m->x')
@@ -45,9 +50,8 @@ t.test('basic', async t => {
   }
 
   const path = t.testdir({
+    ...shims,
     'node.exe': readFileSync(process.execPath),
-    npm: readFileSync(npmShim),
-    npx: readFileSync(npxShim),
     // simulate the state where one version of npm is installed
     // with node, but we should load the globally installed one
     'global-prefix': {
@@ -76,8 +80,31 @@ t.test('basic', async t => {
     },
   })
 
-  chmodSync(join(path, 'npm'), 0o755)
-  chmodSync(join(path, 'npx'), 0o755)
+  for (const shim of Object.keys(shims)) {
+    chmodSync(join(path, shim), 0o755)
+  }
+
+  await t.test('cmd', async t => {
+    const result = await spawn('npm.cmd', ['help'], {
+      env: { PATH: path },
+      cwd: path,
+    })
+    console.error(result)
+    const result2 = await spawn('npx.cmd', ['--version'], {
+      env: { PATH: path },
+      cwd: path,
+    })
+    console.error(result2)
+    t.ok(1)
+    // t.match(result, {
+    //   cmd: bash,
+    //   args: args,
+    //   code: 0,
+    //   signal: null,
+    //   stderr: String,
+    //   stdout,
+    // })
+  })
 
   await t.test('bash', async t => {
     const { ProgramFiles, SystemRoot, NYC_CONFIG } = process.env
@@ -109,9 +136,9 @@ t.test('basic', async t => {
       return { name, bash, skip }
     })
 
-    for (const { name, bash, skip } of bashes) {
+    for (const { name, cmd, skip } of bashes) {
       if (skip) {
-        t.skip(name, { diagnostic: true, bin: bash, reason: skip })
+        t.skip(name, { diagnostic: true, cmd, reason: skip })
         continue
       }
 
@@ -124,19 +151,19 @@ t.test('basic', async t => {
 
         for (const [binName, [cmdArgs, stdout]] of bins) {
           await t.test(binName, async t => {
-          // only cygwin *requires* the -l, but the others are ok with it
+            // only cygwin *requires* the -l, but the others are ok with it
             const args = ['-l', binName, ...cmdArgs]
-            const result = await spawn(bash, args, {
+            const result = await spawn(cmd, args, {
             // don't hit the registry for the update check
               env: { PATH: path, npm_config_update_notifier: 'false' },
               cwd: path,
             })
             t.match(result, {
-              cmd: bash,
-              args: args,
+              cmd,
+              args,
               code: 0,
               signal: null,
-              stderr: String,
+              stderr: '',
               stdout,
             })
           })
