@@ -8,7 +8,7 @@ const { version } = require('../../package.json')
 
 const ROOT = resolve(__dirname, '../..')
 const BIN = join(ROOT, 'bin')
-const shims = readdirSync(BIN).reduce((acc, shim) => {
+const SHIMS = readdirSync(BIN).reduce((acc, shim) => {
   if (extname(shim) !== '.js') {
     acc[shim] = readFileSync(join(BIN, shim), 'utf-8')
   }
@@ -23,7 +23,7 @@ t.test('npm vs npx', t => {
     .map((v, i) => i === 0 ? v.value : v.value.toUpperCase())
 
   t.test('bash', t => {
-    const [npxCli, ...changes] = diffFiles(shims.npm, shims.npx)
+    const [npxCli, ...changes] = diffFiles(SHIMS.npm, SHIMS.npx)
     const npxCliLine = npxCli.split('\n').reverse().join('')
     t.match(npxCliLine, /^NPX_CLI_JS=/, 'has NPX_CLI')
     t.equal(changes.length, 20)
@@ -32,7 +32,7 @@ t.test('npm vs npx', t => {
   })
 
   t.test('cmd', t => {
-    const [npxCli, ...changes] = diffFiles(shims['npm.cmd'], shims['npx.cmd'])
+    const [npxCli, ...changes] = diffFiles(SHIMS['npm.cmd'], SHIMS['npx.cmd'])
     t.match(npxCli, /^SET "NPX_CLI_JS=/, 'has NPX_CLI')
     t.equal(changes.length, 12)
     t.strictSame([...new Set(changes)], ['M', 'X'], 'all other changes are m->x')
@@ -49,7 +49,7 @@ t.test('basic', async t => {
   }
 
   const path = t.testdir({
-    ...shims,
+    ...SHIMS,
     'node.exe': readFileSync(process.execPath),
     // simulate the state where one version of npm is installed
     // with node, but we should load the globally installed one
@@ -79,7 +79,7 @@ t.test('basic', async t => {
     },
   })
 
-  for (const shim of Object.keys(shims)) {
+  for (const shim of Object.keys(SHIMS)) {
     chmodSync(join(path, shim), 0o755)
   }
 
@@ -117,22 +117,22 @@ t.test('basic', async t => {
       'git bash': gitBash,
       'git internal bash': gitUsrBinBash,
       'cygwin bash': cygwinBash,
-    }).map(([name, bash]) => {
+    }).map(([name, cmd]) => {
       let skip
-      if (bash === cygwinBash && NYC_CONFIG) {
+      if (cmd === cygwinBash && NYC_CONFIG) {
         skip = 'does not play nicely with NYC, run without coverage'
       } else {
         try {
         // If WSL is installed, it *has* a bash.exe, but it fails if
         // there is no distro installed, so we need to detect that.
-          if (spawnSync(bash, ['-l', '-c', 'exit 0']).status !== 0) {
+          if (spawnSync(cmd, ['-l', '-c', 'exit 0']).status !== 0) {
             throw new Error('not installed')
           }
         } catch {
           skip = 'not installed'
         }
       }
-      return { name, bash, skip }
+      return { name, cmd, skip }
     })
 
     for (const { name, cmd, skip } of bashes) {
