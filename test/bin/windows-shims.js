@@ -6,22 +6,21 @@ const { readFileSync, chmodSync, readdirSync } = require('fs')
 const Diff = require('diff')
 const { version } = require('../../package.json')
 
-const root = resolve(__dirname, '../..')
-const shims = readdirSync(join(root, 'bin')).reduce((acc, shim) => {
+const ROOT = resolve(__dirname, '../..')
+const BIN = join(ROOT, 'bin')
+const shims = readdirSync(BIN).reduce((acc, shim) => {
   if (extname(shim) !== '.js') {
-    acc[shim] = readFileSync(join(root, 'bin', shim), 'utf-8')
+    acc[shim] = readFileSync(join(BIN, shim), 'utf-8')
   }
   return acc
 }, {})
 
-
 t.test('npm vs npx', t => {
   // these scripts should be kept in sync so this tests the contents of each
   // and does a diff to ensure the only differences between them are necessary
-  const diffFiles = (npm, npx) => Diff.diffChars(
-    readFileSync(npm, 'utf8'),
-    readFileSync(npx, 'utf8')
-  ).filter(v => v.added || v.removed).map((v, i) => i === 0 ? v.value : v.value.toUpperCase())
+  const diffFiles = (npm, npx) => Diff.diffChars(npm, npx)
+    .filter(v => v.added || v.removed)
+    .map((v, i) => i === 0 ? v.value : v.value.toUpperCase())
 
   t.test('bash', t => {
     const [npxCli, ...changes] = diffFiles(shims.npm, shims.npx)
@@ -56,7 +55,7 @@ t.test('basic', async t => {
     // with node, but we should load the globally installed one
     'global-prefix': {
       node_modules: {
-        npm: t.fixture('symlink', root),
+        npm: t.fixture('symlink', ROOT),
       },
     },
     // put in a shim that ONLY prints the intended global prefix,
@@ -145,7 +144,7 @@ t.test('basic', async t => {
       await t.test(name, async t => {
         const bins = Object.entries({
         // should have loaded this instance of npm we symlinked in
-          npm: [['help'], `npm@${version} ${root}`],
+          npm: [['help'], `npm@${version} ${ROOT}`],
           npx: [['--version'], version],
         })
 
