@@ -1,7 +1,7 @@
 const t = require('tap')
 const spawn = require('@npmcli/promise-spawn')
 const { spawnSync } = require('child_process')
-const { resolve, join, extname } = require('path')
+const { resolve, join, extname,basename } = require('path')
 const { readFileSync, chmodSync, readdirSync } = require('fs')
 const Diff = require('diff')
 const { version } = require('../../package.json')
@@ -92,7 +92,7 @@ t.test('basic', async t => {
   }
 
   const matchSpawn = async (t, cmd, args = []) => {
-    const isNpm = args.some(a => /^npm/.test(a))
+    const isNpm = [basename(cmd), ...args].some(a => /^npm/.test(a))
     const result = await spawn(cmd, [...args, isNpm ? 'help' : '--version'], {
       // don't hit the registry for the update check
       env: { PATH: path, npm_config_update_notifier: 'false' },
