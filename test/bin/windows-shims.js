@@ -64,12 +64,7 @@ t.test('basic', async t => {
             throw new Error('this should not be called')
           `,
           'npm-cli.js': `
-            const assert = require('assert')
-            const args = process.argv.slice(2)
-            assert.equal(args[0], 'prefix')
-            assert.equal(args[1], '-g')
-            const { resolve } = require('path')
-            console.log(resolve(__dirname, '../../../global-prefix'))
+            throw new Error('this should not be called')
           `,
         },
       },
