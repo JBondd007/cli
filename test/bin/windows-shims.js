@@ -64,7 +64,12 @@ t.test('basic', async t => {
             throw new Error('this should not be called')
           `,
           'npm-cli.js': `
-            throw new Error('this should not be called')
+            const assert = require('assert')
+            const args = process.argv.slice(2)
+            assert.equal(args[0], 'prefix')
+            assert.equal(args[1], '-g')
+            const { resolve } = require('path')
+            console.log(resolve(__dirname, '../../../global-prefix'))
           `,
         },
       },
@@ -125,8 +130,6 @@ t.test('basic', async t => {
             env: { PATH: path, npm_config_update_notifier: 'false' },
             cwd: path,
           })
-          console.error(result)
-          console.error(result.stdout)
           t.match(result, {
             cmd: bash,
             args: args,
