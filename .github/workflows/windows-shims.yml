@@ -27,10 +27,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-      - name: Setup Git User
-        run: |
-          git config --global user.email "npm-cli+bot@github.com"
-          git config --global user.name "npm CLI robot"
       - name: Setup Node
         uses: actions/setup-node@v3
         with:
@@ -38,7 +34,5 @@ jobs:
           cache: npm
       - name: Reset Deps
         run: node . run resetdeps
-      - name: Add Problem Matcher
-        run: echo "::add-matcher::.github/matchers/tap.json"
       - name: Test
         run: node . test --ignore-scripts -- test/bin/windows-shims.js
