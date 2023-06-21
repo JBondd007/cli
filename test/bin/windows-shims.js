@@ -1,7 +1,7 @@
 const t = require('tap')
 const spawn = require('@npmcli/promise-spawn')
 const { spawnSync } = require('child_process')
-const { resolve, join, extname,basename } = require('path')
+const { resolve, join, extname, basename } = require('path')
 const { readFileSync, chmodSync, readdirSync } = require('fs')
 const Diff = require('diff')
 const { version } = require('../../package.json')
@@ -112,32 +112,27 @@ t.test('basic', async t => {
   await matchSpawn(t, 'npx.ps1')
 
   const { ProgramFiles, SystemRoot, NYC_CONFIG } = process.env
-  const gitBash = join(ProgramFiles, 'Git', 'bin', 'bash.exe')
-  const gitUsrBinBash = join(ProgramFiles, 'Git', 'usr', 'bin', 'bash.exe')
-  const wslBash = join(SystemRoot, 'System32', 'bash.exe')
-  const cygwinBash = join(SystemRoot, '/', 'cygwin64', 'bin', 'bash.exe')
+  const bashes = [
+    join(ProgramFiles, 'Git', 'bin', 'bash.exe'),
+    join(ProgramFiles, 'Git', 'usr', 'bin', 'bash.exe'),
+    join(SystemRoot, 'System32', 'bash.exe'),
+    // cygwin bash does not play nicely with nyc
+    !NYC_CONFIG && join(SystemRoot, '/', 'cygwin64', 'bin', 'bash.exe'),
+  ].filter(Boolean)
 
-  const bashes = [wslBash, gitBash, gitUsrBinBash, cygwinBash].map(cmd => {
+  for (const cmd of bashes) {
     let skip = null
-    if (cmd === cygwinBash && NYC_CONFIG) {
-      skip = 'does not play nicely with NYC, run without coverage'
-    } else {
-      try {
+    try {
       // If WSL is installed, it *has* a bash.exe, but it fails if
       // there is no distro installed, so we need to detect that.
-        if (spawnSync(cmd, ['-l', '-c', 'exit 0']).status !== 0) {
-          throw new Error('not installed')
-        }
-      } catch (err) {
-        skip = err.message
+      if (spawnSync(cmd, ['-l', '-c', 'exit 0']).status !== 0) {
+        throw new Error('not installed')
       }
+    } catch (err) {
+      skip = err.message
     }
-    return [cmd, skip]
-  })
-
-  for (const [cmd, reason] of bashes) {
-    if (reason) {
-      t.comment(`skipping ${cmd}: ${reason}`)
+    if (skip) {
+      t.comment(`skipping ${cmd}: ${skip}`)
     } else {
       // only cygwin *requires* the -l, but the others are ok with it
       await matchSpawn(t, cmd, ['-l', 'npm'])
