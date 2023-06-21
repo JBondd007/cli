@@ -15,31 +15,39 @@ const SHIMS = readdirSync(BIN).reduce((acc, shim) => {
   return acc
 }, {})
 
-t.test('npm vs npx', t => {
+t.test('npm vs npx', async t => {
   // these scripts should be kept in sync so this tests the contents of each
   // and does a diff to ensure the only differences between them are necessary
   const diffFiles = (npm, npx) => Diff.diffChars(npm, npx)
     .filter(v => v.added || v.removed)
-    .map((v, i) => i === 0 ? v.value : v.value.toUpperCase())
+    .reduce((acc, v) => {
+      if (v.value.length === 1) {
+        acc.letters.add(v.value.toUpperCase())
+      } else {
+        acc.diff.push(v.value)
+      }
+      return acc
+    }, { diff: [], letters: new Set() })
 
-  t.test('bash', t => {
-    const [npxCli, ...changes] = diffFiles(SHIMS.npm, SHIMS.npx)
-    const npxCliLine = npxCli.split('\n').reverse().join('')
-    t.match(npxCliLine, /^NPX_CLI_JS=/, 'has NPX_CLI')
-    t.equal(changes.length, 20)
-    t.strictSame([...new Set(changes)], ['M', 'X'], 'all other changes are m->x')
-    t.end()
+  t.test('bash', async t => {
+    const { diff, letters } = diffFiles(SHIMS.npm, SHIMS.npx)
+    t.match(diff[0].split('\n').reverse().join(''), /^NPX_CLI_JS=/, 'has NPX_CLI')
+    t.equal(diff.length, 1)
+    t.strictSame([...letters], ['M', 'X'], 'all other changes are m->x')
   })
 
-  t.test('cmd', t => {
-    const [npxCli, ...changes] = diffFiles(SHIMS['npm.cmd'], SHIMS['npx.cmd'])
-    t.match(npxCli, /^SET "NPX_CLI_JS=/, 'has NPX_CLI')
-    t.equal(changes.length, 12)
-    t.strictSame([...new Set(changes)], ['M', 'X'], 'all other changes are m->x')
-    t.end()
+  t.test('cmd', async t => {
+    const { diff, letters } = diffFiles(SHIMS['npm.cmd'], SHIMS['npx.cmd'])
+    t.match(diff[0], /^SET "NPX_CLI_JS=/, 'has NPX_CLI')
+    t.equal(diff.length, 1)
+    t.strictSame([...letters], ['M', 'X'], 'all other changes are m->x')
   })
 
-  t.end()
+  t.test('pwsh', async t => {
+    const { diff, letters } = diffFiles(SHIMS['npm.ps1'], SHIMS['npx.ps1'])
+    t.equal(diff.length, 0)
+    t.strictSame([...letters], ['M', 'X'], 'all other changes are m->x')
+  })
 })
 
 t.test('basic', async t => {
@@ -84,7 +92,7 @@ t.test('basic', async t => {
   }
 
   const matchSpawn = async (t, cmd, args = []) => {
-    const isNpm = args.some(a => /npm/.test(a))
+    const isNpm = args.some(a => /^npm/.test(a))
     const result = await spawn(cmd, [...args, isNpm ? 'help' : '--version'], {
       // don't hit the registry for the update check
       env: { PATH: path, npm_config_update_notifier: 'false' },
@@ -101,6 +109,11 @@ t.test('basic', async t => {
   await t.test('cmd', async t => {
     await matchSpawn(t, 'npm.cmd')
     await matchSpawn(t, 'npx.cmd')
+  })
+
+  await t.test('pwsh', async t => {
+    await matchSpawn(t, 'npm.ps1')
+    await matchSpawn(t, 'npx.ps1')
   })
 
   await t.test('bash', async t => {
@@ -126,8 +139,8 @@ t.test('basic', async t => {
           if (spawnSync(cmd, ['-l', '-c', 'exit 0']).status !== 0) {
             throw new Error('not installed')
           }
-        } catch {
-          skip = 'not installed'
+        } catch (err) {
+          skip = err.message
         }
       }
       return { name, cmd, skip }
