@@ -36,4 +36,4 @@ jobs:
       - name: Reset Deps
         run: node . run resetdeps
       - name: Test
-        run: node . test --ignore-scripts -- test/bin/windows-shims.js
+        run: node . test --ignore-scripts -- test/bin/windows-shims.js --no-coverage
