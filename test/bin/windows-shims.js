@@ -83,26 +83,24 @@ t.test('basic', async t => {
     chmodSync(join(path, shim), 0o755)
   }
 
+  const matchSpawn = async (t, cmd, args = []) => {
+    const isNpm = args.some(a => /npm/.test(a))
+    const result = await spawn(cmd, [...args, isNpm ? 'help' : '--version'], {
+      // don't hit the registry for the update check
+      env: { PATH: path, npm_config_update_notifier: 'false' },
+      cwd: path,
+    })
+    t.match(result, {
+      code: 0,
+      signal: null,
+      stderr: '',
+      stdout: isNpm ? `npm@${version} ${ROOT}` : version,
+    })
+  }
+
   await t.test('cmd', async t => {
-    const result = await spawn('npm.cmd', ['help'], {
-      env: { PATH: path },
-      cwd: path,
-    })
-    console.error(result)
-    const result2 = await spawn('npx.cmd', ['--version'], {
-      env: { PATH: path },
-      cwd: path,
-    })
-    console.error(result2)
-    t.ok(1)
-    // t.match(result, {
-    //   cmd: bash,
-    //   args: args,
-    //   code: 0,
-    //   signal: null,
-    //   stderr: String,
-    //   stdout,
-    // })
+    await matchSpawn(t, 'npm.cmd')
+    await matchSpawn(t, 'npx.cmd')
   })
 
   await t.test('bash', async t => {
@@ -142,31 +140,9 @@ t.test('basic', async t => {
       }
 
       await t.test(name, async t => {
-        const bins = Object.entries({
-        // should have loaded this instance of npm we symlinked in
-          npm: [['help'], `npm@${version} ${ROOT}`],
-          npx: [['--version'], version],
-        })
-
-        for (const [binName, [cmdArgs, stdout]] of bins) {
-          await t.test(binName, async t => {
-            // only cygwin *requires* the -l, but the others are ok with it
-            const args = ['-l', binName, ...cmdArgs]
-            const result = await spawn(cmd, args, {
-            // don't hit the registry for the update check
-              env: { PATH: path, npm_config_update_notifier: 'false' },
-              cwd: path,
-            })
-            t.match(result, {
-              cmd,
-              args,
-              code: 0,
-              signal: null,
-              stderr: '',
-              stdout,
-            })
-          })
-        }
+        // only cygwin *requires* the -l, but the others are ok with it
+        await matchSpawn(t, cmd, ['-l', 'npm'])
+        await matchSpawn(t, cmd, ['-l', 'npx'])
       })
     }
   })
