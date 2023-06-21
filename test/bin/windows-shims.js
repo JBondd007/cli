@@ -15,7 +15,7 @@ const SHIMS = readdirSync(BIN).reduce((acc, shim) => {
   return acc
 }, {})
 
-t.test('npm vs npx', async t => {
+t.test('shim contents', async t => {
   // these scripts should be kept in sync so this tests the contents of each
   // and does a diff to ensure the only differences between them are necessary
   const diffFiles = (npm, npx) => Diff.diffChars(npm, npx)
@@ -50,7 +50,7 @@ t.test('npm vs npx', async t => {
   })
 })
 
-t.test('basic', async t => {
+t.test('run shims', async t => {
   if (process.platform !== 'win32') {
     t.comment('test only relevant on windows')
     return
@@ -71,9 +71,7 @@ t.test('basic', async t => {
     node_modules: {
       npm: {
         bin: {
-          'npx-cli.js': `
-            throw new Error('this should not be called')
-          `,
+          'npx-cli.js': `throw new Error('this should not be called')`,
           'npm-cli.js': `
             const assert = require('assert')
             const args = process.argv.slice(2)
