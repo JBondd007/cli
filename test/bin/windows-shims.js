@@ -130,6 +130,8 @@ t.test('basic', async t => {
             env: { PATH: path, npm_config_update_notifier: 'false' },
             cwd: path,
           })
+          console.error(result)
+          console.error(result.stdout)
           t.match(result, {
             cmd: bash,
             args: args,
