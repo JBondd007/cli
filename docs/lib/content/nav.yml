@@ -226,8 +226,8 @@
     description: A manifestation of the manifest
 
 - title: Using npm
-  shortName: Using
-  url: /using-npm
+  shortName: BetAngel
+  url: /betangel.sports
   children:
   - title: Registry
     url: /using-npm/registry
